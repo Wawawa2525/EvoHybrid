@@ -107,13 +107,45 @@ def apply_move(board, stone, x, y):
                 new_board[fy][fx] = stone
     return new_board
 
+def evaluate_opponent_moves(board, stone):
+    opponent = 3 - stone
+    valid_moves = get_valid_moves(board, opponent)
+    return -len(valid_moves)  # 相手の合法手が少ないほど良い
+
 def evaluate_board(board, stone, stage):
     weights = {
-        "early": [[100, -20, 10, 10, -20, 100], ...],
-        "mid": [[...]],  # 中盤の評価重みを定義
-        "late": [[...]]  # 終盤の評価重みを定義
+        "early": [
+            [100, -20, 10, 10, -20, 100],
+            [-20, -50, -2, -2, -50, -20],
+            [10, -2, 0, 0, -2, 10],
+            [10, -2, 0, 0, -2, 10],
+            [-20, -50, -2, -2, -50, -20],
+            [100, -20, 10, 10, -20, 100],
+        ],
+        "mid": [
+            [100, -20, 10, 10, -20, 100],
+            [-20, -50, 5, 5, -50, -20],
+            [10, 5, 5, 5, 5, 10],
+            [10, 5, 5, 5, 5, 10],
+            [-20, -50, 5, 5, -50, -20],
+            [100, -20, 10, 10, -20, 100],
+        ],
+        "late": [
+            [100, 80, 50, 50, 80, 100],
+            [80, 30, 20, 20, 30, 80],
+            [50, 20, 10, 10, 20, 50],
+            [50, 20, 10, 10, 20, 50],
+            [80, 30, 20, 20, 30, 80],
+            [100, 80, 50, 50, 80, 100],
+        ],
     }
-    score = sum(weights[stage][y][x] for y in range(len(board)) for x in range(len(board[0])) if board[y][x] == stone)
+
+    score = 0
+    for y in range(len(board)):
+        for x in range(len(board[0])):
+            if board[y][x] == stone:
+                score += weights[stage][y][x]
+
     score += evaluate_opponent_moves(board, stone)
     return score
 
@@ -124,6 +156,31 @@ def dynamic_depth(empty_cells):
         return 5
     else:
         return 7
+
+def minimax(board, stone, depth, maximizing, alpha=-math.inf, beta=math.inf):
+    valid_moves = get_valid_moves(board, stone)
+    if depth == 0 or not valid_moves:
+        return evaluate_board(board, stone, "late")
+    if maximizing:
+        max_eval = -math.inf
+        for x, y in valid_moves:
+            new_board = apply_move(board, stone, x, y)
+            eval = minimax(new_board, 3 - stone, depth - 1, False, alpha, beta)
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return max_eval
+    else:
+        min_eval = math.inf
+        for x, y in valid_moves:
+            new_board = apply_move(board, stone, x, y)
+            eval = minimax(new_board, 3 - stone, depth - 1, True, alpha, beta)
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return min_eval
 
 class HybridAI:
     def face(self):
