@@ -160,17 +160,31 @@ def evaluate_board_with_table(board, stone, eval_table):
 def evaluate_risk_move(board, stone, x, y):
     x_squares = [(0, 1), (1, 0), (1, 1), (0, 4), (1, 5), (1, 4),
                  (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
+    adjacent_to_corners = [(0, 2), (2, 0), (2, 5), (5, 2), 
+                           (0, 3), (3, 0), (3, 5), (5, 3)]
     if (x, y) in x_squares:
-        return -100  # ペナルティ
+        return -200
+    elif (x, y) in adjacent_to_corners:
+        return -100
     return 0
 
+# 動的なシミュレーション数
+def dynamic_simulation_count(total_stones):
+    if total_stones < 20:
+        return 5000
+    elif total_stones < 50:
+        return 3000
+    else:
+        return 1000
+
+# 確定石のカウント
 def count_stable_stones(board, stone):
     stable_count = 0
-    # ここに確定石のカウントロジックを実装
+    # 確定石ロジックをここに実装
     return stable_count
 
-# 改良されたMCTS
-def improved_mcts_move(board, stone, simulations=3000):
+# MCTSの改善
+def improved_mcts_move(board, stone, simulations):
     moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
     if not moves:
         return None
@@ -241,10 +255,11 @@ class HybridAI(object):
         total_stones = sum(row.count(BLACK) + row.count(WHITE) for row in board)
 
         if total_stones < 20:  # 序盤
-            _, best_move = alpha_beta(board, stone, depth=4, alpha=-float('inf'), beta=float('inf'), maximizing=True)
+            _, best_move = alpha_beta(board, stone, depth=6, alpha=-float('inf'), beta=float('inf'), maximizing=True)
             return best_move
         elif total_stones < 50:  # 中盤
-            return improved_mcts_move(board, stone, simulations=3000)
+            simulations = dynamic_simulation_count(total_stones)
+            return improved_mcts_move(board, stone, simulations)
         else:  # 終盤
-            _, best_move = alpha_beta(board, stone, depth=8, alpha=-float('inf'), beta=float('inf'), maximizing=True)
+            _, best_move = alpha_beta(board, stone, depth=10, alpha=-float('inf'), beta=float('inf'), maximizing=True)
             return best_move
