@@ -158,6 +158,34 @@ def evaluate_board_with_table(board, stone, eval_table):
                 score -= eval_table[y][x]
     return score
 
+# MCTS
+def mcts_move(board, stone, simulations=2000):
+    moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
+    if not moves:
+        return None
+
+    def simulate_move(move):
+        scores = 0
+        for _ in range(simulations // len(moves)):
+            simulated_board = make_move(board, stone, move[0], move[1])
+            current_stone = 3 - stone
+            for _ in range(10):
+                valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(simulated_board, current_stone, x, y)]
+                if not valid_moves:
+                    break
+                random_move = random.choice(valid_moves)
+                simulated_board = make_move(simulated_board, current_stone, random_move[0], random_move[1])
+                current_stone = 3 - current_stone
+            scores += evaluate_board_with_table(simulated_board, stone, MID_EVAL_TABLE)
+        return scores
+
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(simulate_move, moves)
+
+    move_scores = {move: score for move, score in zip(moves, results)}
+    best_move = max(move_scores, key=move_scores.get)
+    return best_move
+
 # αβ探索
 def alpha_beta(board, stone, depth, alpha, beta, maximizing):
     if depth == 0 or not can_place(board, stone):
@@ -192,43 +220,29 @@ def alpha_beta(board, stone, depth, alpha, beta, maximizing):
                 break
         return min_eval, best_move
 
-# AIクラス
-def best_place(board, stone):
-    total_stones = sum(row.count(BLACK) + row.count(WHITE) for row in board)
-    if total_stones <= 10:
-        _, best_move = alpha_beta(board, stone, depth=6, alpha=-float('inf'), beta=float('inf'), maximizing=True)
-        return best_move
-    else:
-        corners = [(0, 0), (0, 5), (5, 0), (5, 5)]
+class HybridAI(object):
+
+    def face(self):
+        return "✨"
+
+    def place(self, board, stone):
+        valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
+        if not valid_moves:
+            return None
+
+        total_stones = sum(row.count(BLACK) + row.count(WHITE) for row in board)
+
+        # 特定のリスク領域 (Xスクエア)
         x_squares = [(0, 1), (1, 0), (1, 1), (0, 4), (1, 5), (1, 4),
                      (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
 
-        best_score = -float('inf')
-        best_move = None
-
-        for y in range(len(board)):
-            for x in range(len(board[0])):
-                if not can_place_x_y(board, stone, x, y):
-                    continue
-
-                if (x, y) in corners:
-                    return (x, y)
-
-                score = evaluate_board_with_table(make_move(board, stone, x, y), stone, MID_EVAL_TABLE)
-
-                if (x, y) in x_squares:
-                    score -= 100
-
-                if score > best_score:
-                    best_score = score
-                    best_move = (x, y)
-
-        return best_move
-
-class ImprovedAI(object):
-
-    def face(self):
-        return "🚀"
-
-    def place(self, board, stone):
-        return best_place(board, stone)
+        if total_stones < 20:  # 序盤
+            _, best_move = alpha_beta(board, stone, depth=4, alpha=-float('inf'), beta=float('inf'), maximizing=True)
+            return best_move
+        elif total_stones < 50:  # 中盤
+            mcts_move_with_x_risk = max(valid_moves, key=lambda move: (evaluate_board_with_table(make_move(board, stone, move[0], move[1]), stone, MID_EVAL_TABLE)
+                                                                     - (100 if move in x_squares else 0)))
+            return mcts_move_with_x_risk
+        else:  # 終盤
+            _, best_move = alpha_beta(board, stone, depth=8, alpha=-float('inf'), beta=float('inf'), maximizing=True)
+            return best_move
