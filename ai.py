@@ -148,17 +148,41 @@ class HybridAI(object):
         return "✨"
 
     def place(self, board, stone):
+        # 合法手を取得
         valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
 
+        # 合法手がない場合はNoneを返す
         if not valid_moves:
             return None
 
+        # 残りの空きマスをカウント
         empty_cells = sum(row.count(0) for row in board)
 
+        # ゲーム進行のステージを判定
         if empty_cells > 20:
             stage = "early"
         elif empty_cells > 10:
             stage = "mid"
         else:
             stage = "late"
+
+        best_score = -math.inf
+        best_move = None
+
+        # 全ての合法手を評価
+        for x, y in valid_moves:
+            new_board = make_move(board, stone, x, y)
+            if stage == "late":
+                # 終盤ではミニマックス法を使用
+                score = minimax(new_board, 3 - stone, depth=5, maximizing_player=False)
+            else:
+                # 序盤・中盤では動的評価関数を使用
+                score = dynamic_evaluate_board(new_board, stone, stage)
+
+            if score > best_score:
+                best_score = score
+                best_move = (x, y)
+
+        # 最善手を返す
+        return best_move
 
