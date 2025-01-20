@@ -168,20 +168,27 @@ def evaluate_risk_move(board, stone, x, y):
         return -100
     return 0
 
-# 動的なシミュレーション数
-def dynamic_simulation_count(total_stones):
-    if total_stones < 20:
-        return 5000
-    elif total_stones < 50:
-        return 3000
-    else:
-        return 1000
+def count_flippable_stones(board, stone, x, y):
+    if board[y][x] != 0:
+        return 0
 
-# 確定石のカウント
-def count_stable_stones(board, stone):
-    stable_count = 0
-    # 確定石ロジックをここに実装
-    return stable_count
+    opponent = 3 - stone
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    total_flipped = 0
+
+    for dx, dy in directions:
+        nx, ny = x + dx, y + dy
+        flipped = 0
+
+        while 0 <= nx < len(board[0]) and 0 <= ny < len(board) and board[ny][nx] == opponent:
+            flipped += 1
+            nx += dx
+            ny += dy
+
+        if 0 <= nx < len(board[0]) and 0 <= ny < len(board) and board[ny][nx] == stone:
+            total_flipped += flipped
+
+    return total_flipped
 
 # MCTSの改善
 def improved_mcts_move(board, stone, simulations):
@@ -248,18 +255,69 @@ class HybridAI(object):
         return "✨"
 
     def place(self, board, stone):
-        valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
-        if not valid_moves:
-            return None
+        corners = [(0, 0), (0, 5), (5, 0), (5, 5)]
+        x_squares = [(0, 1), (1, 0), (1, 1), (0, 4), (1, 5), (1, 4),
+                     (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
 
-        total_stones = sum(row.count(BLACK) + row.count(WHITE) for row in board)
+        def evaluate_position(board, stone, x, y):
+            # 高度な評価関数を追加（角取り、Xスクエア、リスク管理を考慮）
+            score = count_flippable_stones(board, stone, x, y)
+            if (x, y) in corners:
+                score += 200  # 角を優先
+            if (x, y) in x_squares:
+                score -= 100  # Xスクエアのリスクを回避
+            return score
 
-        if total_stones < 20:  # 序盤
-            _, best_move = alpha_beta(board, stone, depth=6, alpha=-float('inf'), beta=float('inf'), maximizing=True)
+        def minimax_with_depth(board, stone, depth, is_maximizing):
+            opponent = 3 - stone
+
+            if depth == 0 or not can_place(board, stone) and not can_place(board, opponent):
+                return evaluate_board(board, stone)
+
+            if is_maximizing:
+                max_eval = -float('inf')
+                for y in range(len(board)):
+                    for x in range(len(board[0])):
+                        if can_place_x_y(board, stone, x, y):
+                            new_board = make_move(board, stone, x, y)
+                            eval = minimax_with_depth(new_board, opponent, depth - 1, False)
+                            max_eval = max(max_eval, eval)
+                return max_eval
+            else:
+                min_eval = float('inf')
+                for y in range(len(board)):
+                    for x in range(len(board[0])):
+                        if can_place_x_y(board, opponent, x, y):
+                            new_board = make_move(board, opponent, x, y)
+                            eval = minimax_with_depth(new_board, stone, depth - 1, True)
+                            min_eval = min(min_eval, eval)
+                return min_eval
+
+        empty_cells = sum(row.count(0) for row in board)
+
+        if empty_cells <= 10:  # 終盤戦略
+            best_eval = -float('inf')
+            best_move = None
+            for y in range(len(board)):
+                for x in range(len(board[0])):
+                    if can_place_x_y(board, stone, x, y):
+                        new_board = make_move(board, stone, x, y)
+                        eval = minimax_with_depth(new_board, stone, 5, False)  # 深さ5
+                        if eval > best_eval:
+                            best_eval = eval
+                            best_move = (x, y)
             return best_move
-        elif total_stones < 50:  # 中盤
-            simulations = dynamic_simulation_count(total_stones)
-            return improved_mcts_move(board, stone, simulations)
-        else:  # 終盤
-            _, best_move = alpha_beta(board, stone, depth=10, alpha=-float('inf'), beta=float('inf'), maximizing=True)
-            return best_move
+
+        # 中盤・序盤戦略
+        best_score = -float('inf')
+        best_move = None
+
+        for y in range(len(board)):
+            for x in range(len(board[0])):
+                if can_place_x_y(board, stone, x, y):
+                    score = evaluate_position(board, stone, x, y)
+                    if score > best_score:
+                        best_score = score
+                        best_move = (x, y)
+
+        return best_move
