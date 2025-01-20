@@ -270,7 +270,6 @@ class HybridAI(object):
                      (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
 
         def evaluate_position(board, stone, x, y):
-            # 高度な評価関数を追加（角取り、Xスクエア、リスク管理を考慮）
             score = count_flippable_stones(board, stone, x, y)
             if (x, y) in corners:
                 score += 200  # 角を優先
@@ -303,31 +302,34 @@ class HybridAI(object):
                             min_eval = min(min_eval, eval)
                 return min_eval
 
+        # すべての合法手を取得
+        valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
+
+        # 合法な手がない場合はNoneを返す
+        if not valid_moves:
+            return None
+
         empty_cells = sum(row.count(0) for row in board)
 
         if empty_cells <= 10:  # 終盤戦略
             best_eval = -float('inf')
             best_move = None
-            for y in range(len(board)):
-                for x in range(len(board[0])):
-                    if can_place_x_y(board, stone, x, y):
-                        new_board = make_move(board, stone, x, y)
-                        eval = minimax_with_depth(new_board, stone, 5, False)  # 深さ5
-                        if eval > best_eval:
-                            best_eval = eval
-                            best_move = (x, y)
+            for x, y in valid_moves:
+                new_board = make_move(board, stone, x, y)
+                eval = minimax_with_depth(new_board, stone, 5, False)  # 深さ5
+                if eval > best_eval:
+                    best_eval = eval
+                    best_move = (x, y)
             return best_move
 
         # 中盤・序盤戦略
         best_score = -float('inf')
         best_move = None
 
-        for y in range(len(board)):
-            for x in range(len(board[0])):
-                if can_place_x_y(board, stone, x, y):
-                    score = evaluate_position(board, stone, x, y)
-                    if score > best_score:
-                        best_score = score
-                        best_move = (x, y)
+        for x, y in valid_moves:
+            score = evaluate_position(board, stone, x, y)
+            if score > best_score:
+                best_score = score
+                best_move = (x, y)
 
         return best_move
