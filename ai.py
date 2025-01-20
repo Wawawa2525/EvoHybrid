@@ -87,61 +87,60 @@ def evaluate_board(board, stone):
 
     return score
 
-def dynamic_depth(empty_cells):
-    if empty_cells > 20:
-        return 2
-    elif empty_cells > 10:
-        return 3
-    else:
-        return 5
+def dynamic_evaluate_board(board, stone, stage):
+    early_weight = [
+        [100, -20, 10, 10, -20, 100],
+        [-20, -50, -2, -2, -50, -20],
+        [10, -2, 1, 1, -2, 10],
+        [10, -2, 1, 1, -2, 10],
+        [-20, -50, -2, -2, -50, -20],
+        [100, -20, 10, 10, -20, 100],
+    ]
+    late_weight = [
+        [100, 80, 50, 50, 80, 100],
+        [80, 30, 20, 20, 30, 80],
+        [50, 20, 10, 10, 20, 50],
+        [50, 20, 10, 10, 20, 50],
+        [80, 30, 20, 20, 30, 80],
+        [100, 80, 50, 50, 80, 100],
+    ]
 
-def monte_carlo_simulation(board, stone, x, y, simulations=30):
-    opponent = 3 - stone
-    win_count = 0
-
-    for _ in range(simulations):
-        simulated_board = make_move(board, stone, x, y)
-        current_player = opponent
-
-        while can_place(simulated_board, stone) or can_place(simulated_board, opponent):
-            if can_place(simulated_board, current_player):
-                possible_moves = [
-                    (i, j) for j in range(len(board)) for i in range(len(board[0]))
-                    if can_place_x_y(simulated_board, current_player, i, j)
-                ]
-                move = random.choice(possible_moves)
-                simulated_board = make_move(simulated_board, current_player, move[0], move[1])
-            current_player = 3 - current_player
-
-        final_score = sum(row.count(stone) for row in simulated_board)
-        opponent_score = sum(row.count(opponent) for row in simulated_board)
-        if final_score > opponent_score:
-            win_count += 1
-
-    return win_count / simulations
-
-def best_place_with_monte_carlo(board, stone):
-    best_score = -float('inf')
-    best_move = None
+    weight = early_weight if stage == "early" else late_weight
+    score = 0
 
     for y in range(len(board)):
         for x in range(len(board[0])):
-            if can_place_x_y(board, stone, x, y):
-                win_rate = monte_carlo_simulation(board, stone, x, y)
-                if win_rate > best_score:
-                    best_score = win_rate
-                    best_move = (x, y)
+            if board[y][x] == stone:
+                score += weight[y][x]
 
-    return best_move
+    return score
 
-def count_stable_stones(board, stone):
-    stable_count = 0
-    # 確定石ロジックをここに追加
-    return stable_count
+def minimax(board, stone, depth, maximizing_player, alpha=-math.inf, beta=math.inf):
+    valid_moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
 
-def evaluate_with_stable_stones(board, stone):
-    stable_stones = count_stable_stones(board, stone)
-    return evaluate_board(board, stone) + stable_stones * 50
+    if depth == 0 or not valid_moves:
+        return evaluate_board(board, stone)
+
+    if maximizing_player:
+        max_eval = -math.inf
+        for x, y in valid_moves:
+            new_board = make_move(board, stone, x, y)
+            eval = minimax(new_board, 3 - stone, depth - 1, False, alpha, beta)
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return max_eval
+    else:
+        min_eval = math.inf
+        for x, y in valid_moves:
+            new_board = make_move(board, stone, x, y)
+            eval = minimax(new_board, 3 - stone, depth - 1, True, alpha, beta)
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return min_eval
 
 class HybridAI(object):
 
@@ -156,15 +155,10 @@ class HybridAI(object):
 
         empty_cells = sum(row.count(0) for row in board)
 
-        if empty_cells <= 10:  # 終盤戦略
-            best_score = -float('inf')
-            best_move = None
-            for x, y in valid_moves:
-                simulated_board = make_move(board, stone, x, y)
-                score = evaluate_with_stable_stones(simulated_board, stone)
-                if score > best_score:
-                    best_score = score
-                    best_move = (x, y)
-            return best_move
+        if empty_cells > 20:
+            stage = "early"
+        elif empty_cells > 10:
+            stage = "mid"
+        else:
+            stage = "late"
 
-        return best_place_with_monte_carlo(board, stone)
