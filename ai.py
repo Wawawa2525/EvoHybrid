@@ -96,7 +96,6 @@ LATE_EVAL_TABLE = [
     [100, -20, 10, 10, -20, 100],
 ]
 
-# 基本的なゲームロジック
 def can_place_x_y(board, stone, x, y):
     if board[y][x] != 0:
         return False
@@ -158,8 +157,20 @@ def evaluate_board_with_table(board, stone, eval_table):
                 score -= eval_table[y][x]
     return score
 
-# MCTS
-def mcts_move(board, stone, simulations=2000):
+def evaluate_risk_move(board, stone, x, y):
+    x_squares = [(0, 1), (1, 0), (1, 1), (0, 4), (1, 5), (1, 4),
+                 (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
+    if (x, y) in x_squares:
+        return -100  # ペナルティ
+    return 0
+
+def count_stable_stones(board, stone):
+    stable_count = 0
+    # ここに確定石のカウントロジックを実装
+    return stable_count
+
+# 改良されたMCTS
+def improved_mcts_move(board, stone, simulations=3000):
     moves = [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
     if not moves:
         return None
@@ -179,10 +190,7 @@ def mcts_move(board, stone, simulations=2000):
             scores += evaluate_board_with_table(simulated_board, stone, MID_EVAL_TABLE)
         return scores
 
-    with ThreadPoolExecutor() as executor:
-        results = executor.map(simulate_move, moves)
-
-    move_scores = {move: score for move, score in zip(moves, results)}
+    move_scores = {move: simulate_move(move) + evaluate_risk_move(board, stone, move[0], move[1]) for move in moves}
     best_move = max(move_scores, key=move_scores.get)
     return best_move
 
@@ -232,17 +240,11 @@ class HybridAI(object):
 
         total_stones = sum(row.count(BLACK) + row.count(WHITE) for row in board)
 
-        # 特定のリスク領域 (Xスクエア)
-        x_squares = [(0, 1), (1, 0), (1, 1), (0, 4), (1, 5), (1, 4),
-                     (4, 0), (5, 1), (4, 1), (4, 5), (5, 4), (4, 4)]
-
         if total_stones < 20:  # 序盤
             _, best_move = alpha_beta(board, stone, depth=4, alpha=-float('inf'), beta=float('inf'), maximizing=True)
             return best_move
         elif total_stones < 50:  # 中盤
-            mcts_move_with_x_risk = max(valid_moves, key=lambda move: (evaluate_board_with_table(make_move(board, stone, move[0], move[1]), stone, MID_EVAL_TABLE)
-                                                                     - (100 if move in x_squares else 0)))
-            return mcts_move_with_x_risk
+            return improved_mcts_move(board, stone, simulations=3000)
         else:  # 終盤
             _, best_move = alpha_beta(board, stone, depth=8, alpha=-float('inf'), beta=float('inf'), maximizing=True)
             return best_move
