@@ -73,6 +73,65 @@ def evaluate_opponent_moves(board, stone):
     valid_moves = get_valid_moves(board, opponent)
     return -len(valid_moves)  # 相手の合法手が少ないほど良い
 
+def can_place_x_y(board, stone, x, y):
+    if board[y][x] != 0:
+        return False
+
+    opponent = 3 - stone
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+    for dx, dy in directions:
+        nx, ny = x + dx, y + dy
+        found_opponent = False
+
+        while 0 <= nx < len(board[0]) and 0 <= ny < len(board) and board[ny][nx] == opponent:
+            nx += dx
+            ny += dy
+            found_opponent = True
+
+        if found_opponent and 0 <= nx < len(board[0]) and 0 <= ny < len(board) and board[ny][nx] == stone:
+            return True
+
+    return False
+
+def get_valid_moves(board, stone):
+    return [(x, y) for y in range(len(board)) for x in range(len(board[0])) if can_place_x_y(board, stone, x, y)]
+
+def apply_move(board, stone, x, y):
+    new_board = [row[:] for row in board]
+    new_board[y][x] = stone
+
+    opponent = 3 - stone
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+    for dx, dy in directions:
+        nx, ny = x + dx, y + dy
+        stones_to_flip = []
+
+        while 0 <= nx < len(board[0]) and 0 <= ny < len(board) and new_board[ny][nx] == opponent:
+            stones_to_flip.append((nx, ny))
+            nx += dx
+            ny += dy
+
+        if stones_to_flip and 0 <= nx < len(board[0]) and 0 <= ny < len(board) and new_board[ny][nx] == stone:
+            for flip_x, flip_y in stones_to_flip:
+                new_board[flip_y][flip_x] = stone
+
+    return new_board
+
+def count_stable_stones(board, stone):
+    stable_count = 0
+    for y in range(len(board)):
+        for x in range(len(board[0])):
+            if board[y][x] == stone:
+                stable_count += 1
+    return stable_count
+
+def evaluate_opponent_moves(board, stone):
+    opponent = 3 - stone
+    valid_moves = get_valid_moves(board, opponent)
+    return -len(valid_moves)  # 相手の合法手が少ないほど良い
+
 def dynamic_evaluate_board(board, stone, stage):
     weights = {
         "early": [
