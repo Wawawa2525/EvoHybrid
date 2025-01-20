@@ -146,6 +146,16 @@ def make_move(board, stone, x, y):
 
     return new_board
 
+def evaluate_board(board, stone):
+    score = 0
+    for y in range(len(board)):
+        for x in range(len(board[0])):
+            if board[y][x] == stone:
+                score += 1
+            elif board[y][x] == 3 - stone:
+                score -= 1
+    return score
+
 # 動的評価関数
 def evaluate_board_with_table(board, stone, eval_table):
     score = 0
